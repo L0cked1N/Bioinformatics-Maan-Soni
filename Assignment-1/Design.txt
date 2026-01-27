@@ -1,0 +1,6 @@
+Multiple_Cloning_Site1, EcoRI
+Multiple_Cloning_Site2, BamHI
+Multiple_Cloning_Site3, HindIII
+Antibiotic_marker1, Ampicillin
+Antibiotic_marker2, Kanamycin
+** End of File
