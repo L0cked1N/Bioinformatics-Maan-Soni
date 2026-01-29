@@ -1,3 +1,0 @@
-Multiple_Cloning_Site1, GAATTC
-Multiple_Cloning_Site2, AAGCTT
-Antibiotic_marker1, Kanamycin

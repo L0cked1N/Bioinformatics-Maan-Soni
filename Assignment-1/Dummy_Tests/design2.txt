@@ -1,3 +1,0 @@
-MCS1, EcoRI
-MCS2, AAGCTT
-Antibiotic_marker1, Chloramphenicol
