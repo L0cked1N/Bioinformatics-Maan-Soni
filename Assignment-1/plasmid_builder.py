@@ -1,81 +1,79 @@
 # plasmid_builder.py
 from Bio import SeqIO
 import os
-from ori_finder import find_ori_multi_scale
-
+from ori_finder import find_ori_meme_style
 from restriction_sites import RESTRICTION_SITES
 
-
 def parse_design_file(design_file):
-    mcs = []
-    antibiotics = []
-    screening = []
-
+    mcs, antibiotics, screening = [], [], []
     with open(design_file) as f:
         for line in f:
             if not line.strip():
                 continue
-
             part, name = line.strip().split(",")
-            part = part.strip()
-            name = name.strip()
+            part = part.strip().lower()
+            name = name.strip()      
 
-            if "site" in part.lower():
+            if "site" in part:
                 mcs.append(name)
-            elif "gene" in part.lower():
+            elif "gene" in part:
                 antibiotics.append(name)
             else:
                 screening.append(name)
-
     return mcs, antibiotics, screening
-
 
 def load_marker_sequence(marker_name):
     path = f"markers/{marker_name}.fa"
     if not os.path.exists(path):
-        print(f"[WARNING] Marker not found, skipping: {marker_name}")
+        print(f"[WARNING] Marker not found: {marker_name}")
         return ""
-
     record = SeqIO.read(path, "fasta")
-    return str(record.seq)
+    return str(record.seq).upper()
 
 
 def delete_sites(seq, enzymes):
     for enz in enzymes:
-        if enz not in RESTRICTION_SITES:
-            print(f"[WARNING] Unknown restriction enzyme, skipping: {enz}")
-            continue
-        motif = RESTRICTION_SITES[enz]
-        seq = seq.replace(motif, "")
+        if enz in RESTRICTION_SITES:
+            seq = seq.replace(RESTRICTION_SITES[enz], "")
     return seq
 
 
 def build_plasmid(input_fasta, design_file):
-    # Step 1: Find ORI in host genome
-    ori_seq, start, end = find_ori_multi_scale(input_fasta)
-    print(f"ORI found at: {start} - {end}")
+    # ---------- ORI DISCOVERY ----------
+    ori = find_ori_meme_style(input_fasta)
 
-    # Step 2: Parse design file
+    ori_seq = ori["ori_sequence"]
+    start, end = ori["ori_region"]
+
+    print("\n[ORI DISCOVERY REPORT]")
+    print(f"Position        : {ori['ori_position']}")
+    print(f"Region          : {start}-{end}")
+    print(f"Motif length    : {ori['best_k']}")
+    print(f"Log-likelihood  : {round(ori['log_likelihood'],2)}")
+    print(f"Motifs          : {ori['motifs']}\n")
+
+    # ---------- DESIGN FILE ----------
     mcs, antibiotics, screening = parse_design_file(design_file)
 
+    # ---------- BUILD BACKBONE ----------
     plasmid = ori_seq
 
-    # Step 3: Add antibiotic genes
     for gene in antibiotics:
         plasmid += load_marker_sequence(gene)
 
-    # Step 4: Add screening genes
     for gene in screening:
         plasmid += load_marker_sequence(gene)
 
-    # Step 5: Add MCS restriction sites
+    # ---------- SANITIZE BACKBONE ----------
+    # remove restriction sites ONLY from functional DNA
+    plasmid = delete_sites(plasmid, RESTRICTION_SITES.keys())
+
+    # ---------- ADD MCS LAST ----------
+    # these must NEVER be deleted
     for enzyme in mcs:
         if enzyme not in RESTRICTION_SITES:
-            print(f"[WARNING] Unknown restriction enzyme, skipping: {enzyme}")
+            print(f"[WARNING] Unknown restriction enzyme: {enzyme}")
             continue
         plasmid += RESTRICTION_SITES[enzyme]
-
-    # Step 6: Delete restriction sites globally
-    plasmid = delete_sites(plasmid, RESTRICTION_SITES.keys())
 
     return plasmid
