@@ -2,116 +2,196 @@
 
 ## 📌 Overview
 
-This repository implements a **universal plasmid construction pipeline** in Python that generates a complete plasmid DNA sequence from:
+This repository implements a **computational plasmid construction pipeline** that generates a plasmid DNA sequence from:
 
-1. A **backbone plasmid** (RSF1010),
-2. A user-provided **DNA insert** (FASTA),
-3. A list of **restriction sites** and a **selected antibiotic resistance marker** defined in a design specification.
+* An **input genome sequence** (`.fa`)
+* A **design specification file** (`Design.txt`)
+* A library of **biological markers** (antibiotic genes, screening genes)
 
-The tool comes with **two independent algorithmic solutions**:
-- A **deterministic builder** (`deterministic.py`)
-- An **algorithmic rule-based builder** (`algorithmic.py`)
+The pipeline:
 
-It also includes a **comparison script** to ensure correctness and equivalence.
+* Automatically detects the **origin of replication (ORI)** from the input genome using GC-skew.
+* Assembles a plasmid using the detected ORI and user-specified components.
+* Removes **all known restriction enzyme sites** from the final plasmid.
 
 ---
 
 ## 🧬 Biological Background
 
-In this project:
-- We use the **RSF1010** replicon as a fixed backbone.
-- Antibiotic markers supported: **Ampicillin**, **Kanamycin**, **Chloramphenicol**.
-- Restriction sites can be either known enzyme names (e.g., `EcoRI`) or literal DNA sequences (e.g., `GAATTC`).
+In real molecular cloning:
+
+* A plasmid requires an **origin of replication (ORI)** to replicate in a host.
+* Selection and screening are done using:
+
+  * Antibiotic resistance genes (AmpR, KanR, etc.)
+  * Reporter genes (lacZα, GFP, etc.)
+* Restriction enzymes define cloning sites.
+
+This project simulates these principles **computationally**.
 
 ---
 
 ## 📁 Repository Structure
 
+```
 Assignment-1/
-├── deterministic.py # Deterministic plasmid builder
-├── algorithmic.py # Rule-based plasmid builder
-├── compare_solutions.py # Compare outputs of both builders
-├── restriction_sites.json # Known restriction enzyme sites
-├── input.fa # THIS WILL BE ADDED BY THE PERSON FOR TESTING AND USING THIS 
-├── design.txt # THIS WILL BE ADDED BY THE PERSON FOR TESTING AND USING THIS 
-├── Output.fa # Generated plasmid (after running)
-├── GenBank_Data_RSF1010/
-│ ├── e_coli_plasmid_rsf1010.fa # RSF1010 backbone FASTA
-│ └── Antibiotic_Resistance_Markers/
-│ ├── Ampicillin.fa # Ampicillin resistance marker (CDS)
-│ ├── Kanamycin.fa # Kanamycin resistance marker (CDS)
-│ └── Chloramphenicol.fa # Chloramphenicol resistance marker (CDS)
-├── tests/
-│ ├── test_plasmid_builder.py # Automatic tests
-│ ├── design.txt # Test design 1
-│ ├── design1.txt # Test design 2
-│ ├── design2.txt # Test design 3
-└── myvenv/ # Python virtual environment (optional)
+├── main.py                # Entry point
+├── ori_finder.py          # Multi-scale ORI detection (GC-skew)
+├── plasmid_builder.py     # Plasmid construction logic
+├── restriction_sites.py   # Known restriction enzyme motifs
+├── markers/               # Marker gene FASTA files
+│   ├── Ampicillin.fa
+│   ├── Kanamycin.fa
+│   └── Chloramphenicol.fa
+├── markers.tab            # Supported markers list
+├── Design_pUC19.txt       # Example design file
+├── pUC19.fa               # Test genome (E. coli plasmid)
+└── tests/
+    └── test_pUC19.py      # Automated test
+```
 
 ---
 
 ## 🧾 Input Files
-### ❗ input.fa Format
-### ❗ design.txt Format
 
-Each line is a comma-separated specification:
+### 1️⃣ Genome Input (`input.fa`)
 
-Label, Value
+A FASTA file of any bacterial genome or plasmid.
 
-- **MCS entries**: can be named enzymes or literal DNA sequences.
-  - Named enzyme → looked up in `restriction_sites.json`
-  - Literal sequence → used directly (if only A/T/G/C)
-- **Antibiotic marker**:
-  - Must include the word “antibiotic” in the label OR a known antibiotic name as the value.
-  - Only one marker may be specified.
+Example:
 
-Examples:
+```fasta
+>Genome
+ATGCGTAGCTAGCTAG...
+```
 
-MCS1, EcoRI
-MCS2, HindIII
-Antibiotic_marker1, Ampicillin
-
-or:
-
-Multiple_Cloning_Site1, GAATTC
-Multiple_Cloning_Site2, AAGCTT
-Antibiotic_marker1, Kanamycin
-
-( This code deals with multiple styles of input design.txt )
 ---
 
-## 🧠 How It Works
+### 2️⃣ Design File (`Design.txt`)
 
-### 🔹 Deterministic Builder (`deterministic.py`)
+Each line specifies a plasmid component:
 
-This script:
+```
+Label, Value
+```
 
-1. Reads the **backbone**, **insert**, and **antibiotic marker** sequences.
-2. Parses the design to interpret restriction sites (enzyme names or literal DNA).
-3. Concatenates:
-backbone -> MCS sequences -> insert -> marker
+Example:
 
-4. Writes a **FASTA** file (`Output_deterministic.fa`) with the complete plasmid.
+```
+BamHI_site, BamHI
+HindIII_site, HindIII
+AmpR_gene, Ampicillin
+lacZ_alpha, Blue_White_Selection
+```
 
-Usage:
-python deterministic.py input.fa design.txt
+Rules:
 
-###🔹 Algorithmic Builder (algorithmic.py)
+* Restriction sites → must exist in `restriction_sites.py`
+* Marker genes → must exist as FASTA in `markers/`
+* Unknown markers are **skipped with warning**
+* Unknown enzymes are **skipped with warning**
 
-This script takes the same inputs but:
+---
 
-1. Builds a component dictionary first.
-2. Constructs a plan (assembly order) based on parsed design.
-3. Executes the plan to generate the same plasmid sequence as the deterministic builder.
+## 🧠 ORI Detection Algorithm
 
-4. Writes a **FASTA** file (`Output_algo.fa`) with the complete plasmid.
+The ORI is detected using:
 
-Usage:
-python algorithmic.py input.fa design.txt
+* GC-skew
+* Sliding window
+* Multi-scale consensus
 
-# 📌 Assumptions & Scope
-✔ Only CDS-only marker sequences (no promoters/terminators) are included.
-✔ Backbone is treated as a fixed string (RSF1010 replicon).
-✔ No biological simulation of restriction enzyme digestion.
-✔ Outputs are simple FASTA sequences.
-✔ Parser supports DNA sequences directly or enzyme names.
+Window sizes:
+
+```
+150 bp, 200 bp, 250 bp, 300 bp
+```
+
+Step size:
+
+```
+10 bp
+```
+
+Final ORI is selected using the **median start position** across scales.
+
+This provides:
+
+* Noise resistance
+* No arbitrary ORI length assumption
+* Robust inference
+
+---
+
+## ⚙️ How to Run
+
+### Install dependency
+
+```bash
+pip install biopython
+```
+
+---
+
+### Run full pipeline
+
+```bash
+python main.py input.fa Design.txt
+```
+
+Output:
+
+```
+Output.fa
+```
+
+This contains the final plasmid sequence.
+
+---
+
+### Run automated test
+
+```bash
+python -m tests.test_pUC19
+```
+
+Expected output:
+
+```
+Test passed: EcoRI successfully removed.
+```
+
+---
+
+## 🔬 What the Pipeline Does
+
+1. Reads genome FASTA
+2. Detects ORI using GC-skew
+3. Appends marker genes
+4. Appends restriction motifs
+5. Removes all known restriction sites globally
+6. Outputs final plasmid
+
+---
+
+## ⚠️ Known Limitations
+
+* Chromosomal ORI may not function as plasmid ORI in real biology.
+* GC-skew only provides statistical ORI estimate.
+* No transcriptional regulation included.
+* No plasmid circularization simulation.
+
+---
+
+## 🧪 Testing Strategy
+
+Test case uses:
+
+* Input genome: `pUC19.fa`
+* Design: `Design_pUC19.txt`
+
+Expected behavior:
+
+* EcoRI removed from final sequence
+* ORI detected automatically
+* Missing markers skipped safely
